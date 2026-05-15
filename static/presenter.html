@@ -160,7 +160,7 @@
         document.getElementById('stat-total').textContent = totalResponses;
         document.getElementById('stat-knew').textContent = totalKnew;
 
-        const labels = stats.map((q, i) => `Q${i + 1}: ${trunc(q.text)}`);
+        const labels = stats.map((q, i) => `Q${i + 1}: ${trunc(q.answer)}`);
         const curiosity   = stats.map(q => q.avg_curiosity    ?? null);
         const satisfaction = stats.map(q => q.avg_satisfaction ?? null);
         const knew        = stats.map(q => q.knew_count        ?? 0);

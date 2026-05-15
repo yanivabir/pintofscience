@@ -159,6 +159,7 @@ async def get_stats():
             SELECT
                 q.id,
                 q.text,
+                q.answer,
                 q.display_order,
                 COUNT(r.id)::int                                                     AS total_responses,
                 ROUND(AVG(r.curiosity)::numeric, 2)::float                           AS avg_curiosity,
