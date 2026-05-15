@@ -64,10 +64,10 @@
     }
 
     .section-label {
-      font-size: 13px;
-      color: #9ca3af;
-      margin-bottom: 12px;
-      letter-spacing: 0.02em;
+      font-size: 18px;
+      font-weight: 600;
+      color: #f3f4f6;
+      margin-bottom: 16px;
     }
 
     .rating-row {
@@ -390,7 +390,7 @@
         ${answerHTML}
         <div class="section-label">How satisfied are you with the answer?</div>
         <div class="rating-row" id="s-row">${ratingBtnsHTML('s', 'pickSatisfaction')}</div>
-        <div class="rating-labels"><span>1 = disappointed</span><span>5 = delighted</span></div>
+        <div class="rating-labels"><span>1 = not at all</span><span>5 = extremely</span></div>
         <button class="btn-next" id="next-btn" disabled onclick="submitSatisfaction()">
           ${isLast ? 'Finish' : 'Next →'}
         </button>
