@@ -165,9 +165,22 @@
       border-radius: 0 10px 10px 0;
       padding: 16px;
       margin-bottom: 26px;
-      font-size: 16px;
-      line-height: 1.6;
+      font-size: 21px;
+      line-height: 1.5;
       color: #e5e7eb;
+    }
+
+    .rating-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: -16px;
+      margin-bottom: 22px;
+      padding: 0 2px;
+    }
+
+    .rating-labels span {
+      font-size: 12px;
+      color: #6b7280;
     }
 
     .done-screen {
@@ -298,10 +311,11 @@
       app.innerHTML = `
         ${progressHTML()}
         <div class="question-text">${escHtml(q.text)}</div>
-        <div class="section-label">How curious are you about the answer? &nbsp; 1 = not at all &nbsp;·&nbsp; 5 = very</div>
+        <div class="section-label">How curious are you about the answer?</div>
         <div class="rating-row" id="c-row">${ratingBtnsHTML('c', 'pickCuriosity')}</div>
+        <div class="rating-labels"><span>1 = not at all</span><span>5 = extremely</span></div>
         <label class="know-label">
-          <input type="checkbox" id="know-cb">
+          <input type="checkbox" id="know-cb" onchange="toggleKnow()">
           <span>I already know the answer</span>
         </label>
         <button class="btn-next" id="next-btn" disabled onclick="submitCuriosity()">
@@ -312,6 +326,12 @@
 
     let _curiosity = null;
 
+    function toggleKnow() {
+      const knows = document.getElementById('know-cb').checked;
+      if (knows) document.getElementById('next-btn').disabled = false;
+      else document.getElementById('next-btn').disabled = (_curiosity === null);
+    }
+
     function pickCuriosity(n) {
       _curiosity = n;
       document.querySelectorAll('#c-row .rating-btn').forEach((b, i) =>
@@ -321,16 +341,17 @@
     }
 
     async function submitCuriosity() {
-      if (!_curiosity) return;
+      const knows = document.getElementById('know-cb').checked;
+      if (!_curiosity && !knows) return;
       const btn = document.getElementById('next-btn');
       btn.disabled = true; btn.textContent = '…';
-      const knows = document.getElementById('know-cb').checked;
       const q = questions[idx];
+      const curiosityToSend = _curiosity ?? 1; // default if skipped because they know the answer
       try {
         const res = await fetch('/api/response/curiosity', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: SID, question_id: q.id, curiosity: _curiosity, knows_answer: knows }),
+          body: JSON.stringify({ session_id: SID, question_id: q.id, curiosity: curiosityToSend, knows_answer: knows }),
         });
         if (!res.ok) {
           // 409 = already submitted, just advance
@@ -367,8 +388,9 @@
         <div class="question-text">${escHtml(q.text)}</div>
         <div class="answer-tag">The Answer</div>
         ${answerHTML}
-        <div class="section-label">How satisfied are you with the answer? &nbsp; 1 = disappointed &nbsp;·&nbsp; 5 = delighted</div>
+        <div class="section-label">How satisfied are you with the answer?</div>
         <div class="rating-row" id="s-row">${ratingBtnsHTML('s', 'pickSatisfaction')}</div>
+        <div class="rating-labels"><span>1 = disappointed</span><span>5 = delighted</span></div>
         <button class="btn-next" id="next-btn" disabled onclick="submitSatisfaction()">
           ${isLast ? 'Finish' : 'Next →'}
         </button>
