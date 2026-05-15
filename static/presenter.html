@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poll Results — Presenter View</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #111827;
+      color: #f3f4f6;
+      min-height: 100vh;
+      padding: 32px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #f9fafb;
+    }
+
+    .refresh-badge {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: #1f2937;
+      border-radius: 14px;
+      padding: 18px 28px;
+      min-width: 140px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 38px;
+      font-weight: 800;
+      color: #f59e0b;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-top: 6px;
+    }
+
+    .chart-card {
+      background: #1f2937;
+      border-radius: 16px;
+      padding: 28px 32px;
+      flex: 1;
+    }
+
+    .legend {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: #d1d5db;
+    }
+
+    .legend-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 60px 0;
+      color: #6b7280;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Live Results</h1>
+    <span class="refresh-badge" id="refresh-info">Refreshing…</span>
+  </header>
+
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">Total responses</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-knew">—</div>
+      <div class="stat-label">Knew an answer</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:#3b82f6"></div>
+        Avg Curiosity (1–5)
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:#f59e0b"></div>
+        Avg Satisfaction (1–5, non-knowers only)
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:#10b981"></div>
+        Knew the answer (count, right axis)
+      </div>
+    </div>
+    <div id="chart-wrap">
+      <canvas id="chart"></canvas>
+    </div>
+    <div id="no-data" class="no-data" style="display:none">
+      No responses yet — waiting for participants…
+    </div>
+  </div>
+
+  <script>
+    let chart = null;
+
+    function trunc(s, n = 38) {
+      return s.length > n ? s.slice(0, n) + '…' : s;
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/api/stats');
+        const stats = await res.json();
+
+        const hasAny = stats.some(q => q.total_responses > 0);
+        document.getElementById('no-data').style.display = hasAny ? 'none' : 'block';
+        document.getElementById('chart-wrap').style.display = hasAny ? 'block' : 'none';
+
+        const totalResponses = Math.max(...stats.map(q => q.total_responses ?? 0), 0);
+        const totalKnew = stats.reduce((sum, q) => sum + (q.knew_count ?? 0), 0);
+        document.getElementById('stat-total').textContent = totalResponses;
+        document.getElementById('stat-knew').textContent = totalKnew;
+
+        const labels = stats.map((q, i) => `Q${i + 1}: ${trunc(q.text)}`);
+        const curiosity   = stats.map(q => q.avg_curiosity    ?? null);
+        const satisfaction = stats.map(q => q.avg_satisfaction ?? null);
+        const knew        = stats.map(q => q.knew_count        ?? 0);
+        const maxKnew     = Math.max(...knew, 1);
+
+        const datasets = [
+          {
+            label: 'Avg Curiosity',
+            data: curiosity,
+            backgroundColor: 'rgba(59, 130, 246, 0.85)',
+            borderRadius: 6,
+            yAxisID: 'yLeft',
+          },
+          {
+            label: 'Avg Satisfaction',
+            data: satisfaction,
+            backgroundColor: 'rgba(245, 158, 11, 0.85)',
+            borderRadius: 6,
+            yAxisID: 'yLeft',
+          },
+          {
+            label: 'Knew the Answer',
+            data: knew,
+            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+            borderRadius: 6,
+            yAxisID: 'yRight',
+          },
+        ];
+
+        if (!chart) {
+          const ctx = document.getElementById('chart').getContext('2d');
+          chart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+              responsive: true,
+              animation: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: ctx => {
+                      const v = ctx.parsed.y;
+                      if (v === null) return ' No data yet';
+                      if (ctx.dataset.label === 'Knew the Answer') return ` ${v} people`;
+                      return ` ${v.toFixed(2)} / 5`;
+                    },
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  ticks: { color: '#9ca3af', font: { size: 13 }, maxRotation: 25 },
+                  grid: { color: '#374151' },
+                },
+                yLeft: {
+                  position: 'left',
+                  min: 0, max: 5,
+                  ticks: { color: '#9ca3af', stepSize: 1 },
+                  grid: { color: '#374151' },
+                  title: { display: true, text: 'Rating (1–5)', color: '#6b7280', font: { size: 12 } },
+                },
+                yRight: {
+                  position: 'right',
+                  min: 0,
+                  max: Math.ceil(maxKnew * 1.4) || 5,
+                  ticks: { color: '#10b981', precision: 0 },
+                  grid: { drawOnChartArea: false },
+                  title: { display: true, text: 'Count (knew)', color: '#10b981', font: { size: 12 } },
+                },
+              },
+            },
+          });
+        } else {
+          chart.data.labels = labels;
+          chart.data.datasets[0].data = curiosity;
+          chart.data.datasets[1].data = satisfaction;
+          chart.data.datasets[2].data = knew;
+          chart.options.scales.yRight.max = Math.ceil(maxKnew * 1.4) || 5;
+          chart.update('none');
+        }
+
+        document.getElementById('refresh-info').textContent =
+          `Last updated ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        document.getElementById('refresh-info').textContent = 'Error fetching data — retrying…';
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

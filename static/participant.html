@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Pint of Science Poll</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #111827;
+      color: #f3f4f6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1f2937;
+      border-radius: 20px;
+      padding: 28px 22px;
+      max-width: 460px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    .progress-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .progress-label {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #374151;
+      border-radius: 2px;
+      margin-bottom: 26px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #f59e0b;
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+
+    .question-text {
+      font-size: 21px;
+      font-weight: 600;
+      line-height: 1.45;
+      margin-bottom: 28px;
+      color: #f9fafb;
+    }
+
+    .section-label {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 12px;
+      letter-spacing: 0.02em;
+    }
+
+    .rating-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+
+    .rating-btn {
+      flex: 1;
+      padding: 18px 0;
+      font-size: 22px;
+      font-weight: 700;
+      border: 2px solid #374151;
+      border-radius: 12px;
+      background: #111827;
+      color: #6b7280;
+      cursor: pointer;
+      transition: all 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .rating-btn.selected {
+      background: #f59e0b;
+      border-color: #f59e0b;
+      color: #111;
+    }
+
+    .rating-btn:active {
+      transform: scale(0.93);
+    }
+
+    .know-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #111827;
+      border: 2px solid #374151;
+      border-radius: 12px;
+      margin-bottom: 26px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .know-label input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      accent-color: #f59e0b;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .know-label span {
+      font-size: 16px;
+      color: #d1d5db;
+    }
+
+    .btn-next {
+      width: 100%;
+      padding: 17px;
+      font-size: 17px;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      background: #f59e0b;
+      color: #111;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-next:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .btn-next:not(:disabled):active {
+      transform: scale(0.97);
+    }
+
+    .answer-tag {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #f59e0b;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .answer-box {
+      background: #111827;
+      border-left: 4px solid #f59e0b;
+      border-radius: 0 10px 10px 0;
+      padding: 16px;
+      margin-bottom: 26px;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #e5e7eb;
+    }
+
+    .done-screen {
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    .done-icon {
+      font-size: 52px;
+      margin-bottom: 16px;
+    }
+
+    .done-screen h2 {
+      font-size: 26px;
+      margin-bottom: 10px;
+    }
+
+    .done-screen p {
+      color: #9ca3af;
+      font-size: 15px;
+    }
+
+    .loading {
+      text-align: center;
+      color: #6b7280;
+      padding: 40px 0;
+      font-size: 16px;
+    }
+
+    .error {
+      text-align: center;
+      color: #ef4444;
+      padding: 20px 0;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="app">
+    <div class="loading">Loading...</div>
+  </div>
+
+  <script>
+    const app = document.getElementById('app');
+
+    // ── session ID ──────────────────────────────────────────────────────────
+    function getSessionId() {
+      let sid = localStorage.getItem('poll_sid');
+      if (!sid) {
+        sid = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+          (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+        localStorage.setItem('poll_sid', sid);
+      }
+      return sid;
+    }
+
+    const SID = getSessionId();
+
+    // ── state ───────────────────────────────────────────────────────────────
+    let questions = [];
+    let idx = 0;
+    let phase = 'curiosity'; // 'curiosity' | 'satisfaction' | 'done'
+
+    function saveState() {
+      localStorage.setItem('poll_state', JSON.stringify({ questions, idx, phase }));
+    }
+
+    function loadState() {
+      try {
+        const s = JSON.parse(localStorage.getItem('poll_state') || 'null');
+        if (s && Array.isArray(s.questions) && s.questions.length) {
+          questions = s.questions;
+          idx = s.idx;
+          phase = s.phase;
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    // ── init ────────────────────────────────────────────────────────────────
+    async function init() {
+      if (loadState()) { render(); return; }
+      try {
+        const res = await fetch(`/api/questions?session_id=${SID}`);
+        if (!res.ok) throw new Error();
+        questions = await res.json();
+        idx = 0; phase = 'curiosity';
+        saveState();
+        render();
+      } catch {
+        app.innerHTML = '<div class="error">Could not load questions — please refresh.</div>';
+      }
+    }
+
+    // ── render ──────────────────────────────────────────────────────────────
+    async function render() {
+      if (phase === 'done' || idx >= questions.length) { renderDone(); return; }
+      if (phase === 'satisfaction') {
+        renderSatisfaction(null); // show loading state
+        const answer = await fetchAnswer(questions[idx].id);
+        renderSatisfaction(answer);
+        return;
+      }
+      renderCuriosity();
+    }
+
+    function progressHTML() {
+      const pct = Math.round((idx / questions.length) * 100);
+      return `
+        <div class="progress-row">
+          <span class="progress-label">Question ${idx + 1} of ${questions.length}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      `;
+    }
+
+    function ratingBtnsHTML(idPrefix, onclickFn) {
+      return [1,2,3,4,5].map(n =>
+        `<button class="rating-btn" id="${idPrefix}-${n}" onclick="${onclickFn}(${n})" aria-label="${n}">${n}</button>`
+      ).join('');
+    }
+
+    // ── curiosity screen ────────────────────────────────────────────────────
+    function renderCuriosity() {
+      const q = questions[idx];
+      const isLast = idx === questions.length - 1;
+      app.innerHTML = `
+        ${progressHTML()}
+        <div class="question-text">${escHtml(q.text)}</div>
+        <div class="section-label">How curious are you about the answer? &nbsp; 1 = not at all &nbsp;·&nbsp; 5 = very</div>
+        <div class="rating-row" id="c-row">${ratingBtnsHTML('c', 'pickCuriosity')}</div>
+        <label class="know-label">
+          <input type="checkbox" id="know-cb">
+          <span>I already know the answer</span>
+        </label>
+        <button class="btn-next" id="next-btn" disabled onclick="submitCuriosity()">
+          ${isLast ? 'Finish' : 'Next →'}
+        </button>
+      `;
+    }
+
+    let _curiosity = null;
+
+    function pickCuriosity(n) {
+      _curiosity = n;
+      document.querySelectorAll('#c-row .rating-btn').forEach((b, i) =>
+        b.classList.toggle('selected', i + 1 === n)
+      );
+      document.getElementById('next-btn').disabled = false;
+    }
+
+    async function submitCuriosity() {
+      if (!_curiosity) return;
+      const btn = document.getElementById('next-btn');
+      btn.disabled = true; btn.textContent = '…';
+      const knows = document.getElementById('know-cb').checked;
+      const q = questions[idx];
+      try {
+        const res = await fetch('/api/response/curiosity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: SID, question_id: q.id, curiosity: _curiosity, knows_answer: knows }),
+        });
+        if (!res.ok) {
+          // 409 = already submitted, just advance
+          if (res.status === 409) { advanceQuestion(); return; }
+          throw new Error();
+        }
+        const data = await res.json();
+        _curiosity = null;
+        if (data.show_answer) { phase = 'satisfaction'; saveState(); render(); }
+        else { advanceQuestion(); }
+      } catch {
+        btn.disabled = false;
+        btn.textContent = idx === questions.length - 1 ? 'Finish' : 'Next →';
+      }
+    }
+
+    // ── satisfaction screen ─────────────────────────────────────────────────
+    async function fetchAnswer(questionId) {
+      try {
+        const res = await fetch(`/api/questions/${questionId}/answer?session_id=${SID}`);
+        if (!res.ok) return '(answer unavailable)';
+        return (await res.json()).answer;
+      } catch { return '(answer unavailable)'; }
+    }
+
+    function renderSatisfaction(answer) {
+      const q = questions[idx];
+      const isLast = idx === questions.length - 1;
+      const answerHTML = answer === null
+        ? '<div class="answer-box" style="color:#6b7280">Loading…</div>'
+        : `<div class="answer-box">${escHtml(answer)}</div>`;
+      app.innerHTML = `
+        ${progressHTML()}
+        <div class="question-text">${escHtml(q.text)}</div>
+        <div class="answer-tag">The Answer</div>
+        ${answerHTML}
+        <div class="section-label">How satisfied are you with the answer? &nbsp; 1 = disappointed &nbsp;·&nbsp; 5 = delighted</div>
+        <div class="rating-row" id="s-row">${ratingBtnsHTML('s', 'pickSatisfaction')}</div>
+        <button class="btn-next" id="next-btn" disabled onclick="submitSatisfaction()">
+          ${isLast ? 'Finish' : 'Next →'}
+        </button>
+      `;
+    }
+
+    let _satisfaction = null;
+
+    function pickSatisfaction(n) {
+      _satisfaction = n;
+      document.querySelectorAll('#s-row .rating-btn').forEach((b, i) =>
+        b.classList.toggle('selected', i + 1 === n)
+      );
+      document.getElementById('next-btn').disabled = false;
+    }
+
+    async function submitSatisfaction() {
+      if (!_satisfaction) return;
+      const btn = document.getElementById('next-btn');
+      btn.disabled = true; btn.textContent = '…';
+      const q = questions[idx];
+      try {
+        const res = await fetch('/api/response/satisfaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: SID, question_id: q.id, satisfaction: _satisfaction }),
+        });
+        if (!res.ok && res.status !== 409) throw new Error();
+        _satisfaction = null;
+        advanceQuestion();
+      } catch {
+        btn.disabled = false;
+        btn.textContent = idx === questions.length - 1 ? 'Finish' : 'Next →';
+      }
+    }
+
+    // ── advance ─────────────────────────────────────────────────────────────
+    function advanceQuestion() {
+      idx++;
+      phase = idx >= questions.length ? 'done' : 'curiosity';
+      saveState();
+      render();
+    }
+
+    function renderDone() {
+      app.innerHTML = `
+        <div class="done-screen">
+          <div class="done-icon">🍺</div>
+          <h2>Thanks!</h2>
+          <p>Results will appear on the big screen shortly.</p>
+        </div>
+      `;
+    }
+
+    // ── util ─────────────────────────────────────────────────────────────────
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+    }
+
+    init();
+  </script>
+</body>
+</html>
