@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     global pool
     db_url = os.environ.get("DATABASE_URL", "postgresql://localhost/pintofscience")
     db_url = db_url.replace("postgres://", "postgresql://", 1)
-    pool = await asyncpg.create_pool(db_url)
+    pool = await asyncpg.create_pool(db_url, ssl="require")
     async with pool.acquire() as conn:
         await init_db(conn)
     yield
