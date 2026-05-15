@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Poll Results — Presenter View</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-error-bars@4.4.0/build/index.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -142,18 +141,49 @@
       return s.length > n ? s.slice(0, n) + '…' : s;
     }
 
-    function toErrorBar(mean, stddev, n, clampMax = 5) {
-      if (mean === null) return null;
-      if (n <= 1 || !stddev) return { y: mean };
-      const sem = stddev / Math.sqrt(n);
-      return { y: mean, yMin: Math.max(0, mean - sem), yMax: Math.min(clampMax, mean + sem) };
-    }
+    // Custom inline error bar plugin — no external dependency
+    const errorBarPlugin = {
+      id: 'errorBars',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        chart.data.datasets.forEach((dataset, di) => {
+          if (!dataset.sems) return;
+          const meta = chart.getDatasetMeta(di);
+          meta.data.forEach((bar, i) => {
+            const sem = dataset.sems[i];
+            const mean = dataset.data[i];
+            if (!sem || mean === null) return;
+            const yScale = chart.scales.y;
+            const x = bar.x;
+            const yTop    = yScale.getPixelForValue(Math.min(5, mean + sem));
+            const yBottom = yScale.getPixelForValue(Math.max(0, mean - sem));
+            const w = 6;
+            ctx.save();
+            ctx.strokeStyle = dataset.semColor || '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(x, yTop);    ctx.lineTo(x, yBottom); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x-w, yTop);  ctx.lineTo(x+w, yTop);  ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x-w, yBottom); ctx.lineTo(x+w, yBottom); ctx.stroke();
+            ctx.restore();
+          });
+        });
+      },
+    };
+    Chart.register(errorBarPlugin);
 
     const ratingScales = {
       x: { ticks: { color: '#9ca3af', font: { size: 13 }, maxRotation: 25 }, grid: { color: '#374151' } },
       y: { min: 0, max: 5, ticks: { color: '#9ca3af', stepSize: 1 }, grid: { color: '#374151' },
            title: { display: true, text: 'Rating (1–5)', color: '#6b7280', font: { size: 12 } } },
     };
+
+    function calcSems(stats, meanKey, stddevKey, nKey) {
+      return stats.map(q => {
+        const n = q[nKey], s = q[stddevKey];
+        if (!q[meanKey] || n <= 1 || !s) return null;
+        return s / Math.sqrt(n);
+      });
+    }
 
     async function refresh() {
       try {
@@ -171,34 +201,32 @@
         document.getElementById('stat-total').textContent = totalResponses;
         document.getElementById('stat-knew').textContent  = totalKnew;
 
-        const labels      = stats.map(q => trunc(q.answer));
-        const curiosity   = stats.map(q => toErrorBar(q.avg_curiosity,    q.stddev_curiosity,    q.n_curiosity));
-        const satisfaction = stats.map(q => toErrorBar(q.avg_satisfaction, q.stddev_satisfaction, q.n_satisfaction));
-        const knew        = stats.map(q => q.knew_count ?? 0);
-        const maxKnew     = Math.max(...knew, 1);
+        const labels       = stats.map(q => trunc(q.answer));
+        const curiosity    = stats.map(q => q.avg_curiosity    ?? null);
+        const satisfaction = stats.map(q => q.avg_satisfaction ?? null);
+        const knew         = stats.map(q => q.knew_count        ?? 0);
+        const maxKnew      = Math.max(...knew, 1);
+        const curiositySem    = calcSems(stats, 'avg_curiosity',    'stddev_curiosity',    'n_curiosity');
+        const satisfactionSem = calcSems(stats, 'avg_satisfaction', 'stddev_satisfaction', 'n_satisfaction');
+
+        const tooltipLabel = c => {
+          const v = c.parsed.y;
+          if (v === null) return ' No data yet';
+          const sem = c.dataset.sems?.[c.dataIndex];
+          return sem ? ` ${v.toFixed(2)} ± ${sem.toFixed(2)} (SEM)` : ` ${v.toFixed(2)} / 5`;
+        };
 
         // ── chart 1: curiosity + satisfaction ───────────────────────────────
         const ratingDatasets = [
-          { label: 'Avg Curiosity',    data: curiosity,    backgroundColor: 'rgba(59,130,246,0.85)',  borderRadius: 6,
-            errorBarColor: 'rgba(59,130,246,1)', errorBarWhiskerColor: 'rgba(59,130,246,1)', errorBarLineWidth: 2, errorBarWhiskerSize: 12 },
-          { label: 'Avg Satisfaction', data: satisfaction, backgroundColor: 'rgba(245,158,11,0.85)', borderRadius: 6,
-            errorBarColor: 'rgba(245,158,11,1)', errorBarWhiskerColor: 'rgba(245,158,11,1)', errorBarLineWidth: 2, errorBarWhiskerSize: 12 },
+          { label: 'Avg Curiosity',    data: curiosity,    sems: curiositySem,    semColor: 'rgb(59,130,246)',
+            backgroundColor: 'rgba(59,130,246,0.85)',  borderRadius: 6 },
+          { label: 'Avg Satisfaction', data: satisfaction, sems: satisfactionSem, semColor: 'rgb(245,158,11)',
+            backgroundColor: 'rgba(245,158,11,0.85)', borderRadius: 6 },
         ];
-
-        const tooltipLabel = c => {
-          const v = c.parsed?.y ?? c.parsed;
-          if (v === null || v === undefined) return ' No data yet';
-          const pt = c.dataset.data[c.dataIndex];
-          if (pt && pt.yMin !== undefined) {
-            const sem = (pt.yMax - pt.yMin) / 2;
-            return ` ${v.toFixed(2)} ± ${sem.toFixed(2)} (SEM)`;
-          }
-          return ` ${v.toFixed(2)} / 5`;
-        };
 
         if (!chart) {
           chart = new Chart(document.getElementById('chart').getContext('2d'), {
-            type: 'barWithErrorBars',
+            type: 'bar',
             data: { labels, datasets: ratingDatasets },
             options: {
               responsive: true, animation: false,
@@ -208,8 +236,8 @@
           });
         } else {
           chart.data.labels = labels;
-          chart.data.datasets[0].data = curiosity;
-          chart.data.datasets[1].data = satisfaction;
+          chart.data.datasets[0].data = curiosity;    chart.data.datasets[0].sems = curiositySem;
+          chart.data.datasets[1].data = satisfaction; chart.data.datasets[1].sems = satisfactionSem;
           chart.update('none');
         }
 
