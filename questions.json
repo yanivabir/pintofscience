@@ -1,22 +1,18 @@
 [
   {
-    "text": "What percentage of the human genome is identical to a banana's?",
-    "answer": "About 60%. Many genes are fundamental to life and have been conserved across hundreds of millions of years of evolution — from metabolism to DNA repair."
+    "text": "What is the most stolen food in the world?",
+    "answer": "Cheese"
   },
   {
-    "text": "How long does it take for light from the Sun to reach the Earth?",
-    "answer": "About 8 minutes and 20 seconds. Light travels at 300,000 km/s, and the Sun is roughly 150 million km away."
+    "text": "In which city was Bob Crane killed?",
+    "answer": "Scottsdale, AZ"
   },
   {
-    "text": "What is the most common element in the human body by mass?",
-    "answer": "Oxygen — about 65% of body mass. Most of it is bound up in water (H₂O) in your cells and tissues."
+    "text": "Which book was written in response to an editor's challenge to write a book using fewer than 50 different words?",
+    "answer": "Dr. Seuss's Green Eggs and Ham"
   },
   {
-    "text": "How many neurons does the human brain contain?",
-    "answer": "Roughly 86 billion neurons, connected by an estimated 100 trillion synapses. The old figure of 100 billion was a popular myth — a 2009 study revised it down."
+    "text": "Cured Salmon is the main ingredient of which food?",
+    "answer": "Gravlax"
   },
-  {
-    "text": "What is the hardest natural substance on Earth?",
-    "answer": "Diamond — pure carbon atoms arranged in a crystal lattice. It scores 10 on the Mohs hardness scale, though some synthetic materials (like lonsdaleite) can be harder."
-  }
 ]
