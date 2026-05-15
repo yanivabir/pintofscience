@@ -47,8 +47,14 @@ async def init_db(conn):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pool
-    db_url = os.environ.get("DATABASE_URL", "postgresql://localhost/pintofscience")
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL is not set")
     db_url = db_url.replace("postgres://", "postgresql://", 1)
+    # Log host so we can diagnose connection issues (password stays hidden)
+    import urllib.parse as _up
+    _p = _up.urlparse(db_url)
+    print(f"[DB] connecting to {_p.hostname}:{_p.port} db={_p.path}", flush=True)
     pool = await asyncpg.create_pool(db_url, ssl="require")
     async with pool.acquire() as conn:
         await init_db(conn)
