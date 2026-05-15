@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Poll Results — Presenter View</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-error-bars@4.4.0/build/index.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -141,21 +142,18 @@
       return s.length > n ? s.slice(0, n) + '…' : s;
     }
 
-    function makeScales(extra = {}) {
-      return {
-        x: {
-          ticks: { color: '#9ca3af', font: { size: 13 }, maxRotation: 25 },
-          grid: { color: '#374151' },
-        },
-        y: {
-          min: 0, max: 5,
-          ticks: { color: '#9ca3af', stepSize: 1 },
-          grid: { color: '#374151' },
-          title: { display: true, text: 'Rating (1–5)', color: '#6b7280', font: { size: 12 } },
-        },
-        ...extra,
-      };
+    function toErrorBar(mean, stddev, n, clampMax = 5) {
+      if (mean === null) return null;
+      if (n <= 1 || !stddev) return { y: mean };
+      const sem = stddev / Math.sqrt(n);
+      return { y: mean, yMin: Math.max(0, mean - sem), yMax: Math.min(clampMax, mean + sem) };
     }
+
+    const ratingScales = {
+      x: { ticks: { color: '#9ca3af', font: { size: 13 }, maxRotation: 25 }, grid: { color: '#374151' } },
+      y: { min: 0, max: 5, ticks: { color: '#9ca3af', stepSize: 1 }, grid: { color: '#374151' },
+           title: { display: true, text: 'Rating (1–5)', color: '#6b7280', font: { size: 12 } } },
+    };
 
     async function refresh() {
       try {
@@ -174,28 +172,38 @@
         document.getElementById('stat-knew').textContent  = totalKnew;
 
         const labels      = stats.map(q => trunc(q.answer));
-        const curiosity   = stats.map(q => q.avg_curiosity    ?? null);
-        const satisfaction = stats.map(q => q.avg_satisfaction ?? null);
-        const knew        = stats.map(q => q.knew_count        ?? 0);
+        const curiosity   = stats.map(q => toErrorBar(q.avg_curiosity,    q.stddev_curiosity,    q.n_curiosity));
+        const satisfaction = stats.map(q => toErrorBar(q.avg_satisfaction, q.stddev_satisfaction, q.n_satisfaction));
+        const knew        = stats.map(q => q.knew_count ?? 0);
         const maxKnew     = Math.max(...knew, 1);
 
         // ── chart 1: curiosity + satisfaction ───────────────────────────────
         const ratingDatasets = [
-          { label: 'Avg Curiosity',    data: curiosity,    backgroundColor: 'rgba(59,130,246,0.85)',  borderRadius: 6 },
-          { label: 'Avg Satisfaction', data: satisfaction, backgroundColor: 'rgba(245,158,11,0.85)', borderRadius: 6 },
+          { label: 'Avg Curiosity',    data: curiosity,    backgroundColor: 'rgba(59,130,246,0.85)',  borderRadius: 6,
+            errorBarColor: 'rgba(59,130,246,1)', errorBarWhiskerColor: 'rgba(59,130,246,1)', errorBarLineWidth: 2, errorBarWhiskerSize: 12 },
+          { label: 'Avg Satisfaction', data: satisfaction, backgroundColor: 'rgba(245,158,11,0.85)', borderRadius: 6,
+            errorBarColor: 'rgba(245,158,11,1)', errorBarWhiskerColor: 'rgba(245,158,11,1)', errorBarLineWidth: 2, errorBarWhiskerSize: 12 },
         ];
+
+        const tooltipLabel = c => {
+          const v = c.parsed?.y ?? c.parsed;
+          if (v === null || v === undefined) return ' No data yet';
+          const pt = c.dataset.data[c.dataIndex];
+          if (pt && pt.yMin !== undefined) {
+            const sem = (pt.yMax - pt.yMin) / 2;
+            return ` ${v.toFixed(2)} ± ${sem.toFixed(2)} (SEM)`;
+          }
+          return ` ${v.toFixed(2)} / 5`;
+        };
 
         if (!chart) {
           chart = new Chart(document.getElementById('chart').getContext('2d'), {
-            type: 'bar',
+            type: 'barWithErrorBars',
             data: { labels, datasets: ratingDatasets },
             options: {
               responsive: true, animation: false,
-              plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: c => c.parsed.y === null ? ' No data yet' : ` ${c.parsed.y.toFixed(2)} / 5` } },
-              },
-              scales: makeScales(),
+              plugins: { legend: { display: false }, tooltip: { callbacks: { label: tooltipLabel } } },
+              scales: ratingScales,
             },
           });
         } else {

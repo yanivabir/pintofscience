@@ -161,14 +161,18 @@ async def get_stats():
                 q.text,
                 q.answer,
                 q.display_order,
-                COUNT(r.id)::int                                                     AS total_responses,
-                ROUND(AVG(r.curiosity)::numeric, 2)::float                           AS avg_curiosity,
-                SUM(CASE WHEN r.knows_answer THEN 1 ELSE 0 END)::int                AS knew_count,
-                ROUND(AVG(CASE WHEN NOT r.knows_answer THEN r.satisfaction END)::numeric, 2)::float
-                                                                                     AS avg_satisfaction
+                COUNT(r.id)::int                                                                         AS total_responses,
+                ROUND(AVG(r.curiosity)::numeric, 3)::float                                               AS avg_curiosity,
+                ROUND(STDDEV_SAMP(r.curiosity)::numeric, 3)::float                                      AS stddev_curiosity,
+                COUNT(r.curiosity)::int                                                                  AS n_curiosity,
+                SUM(CASE WHEN r.knows_answer THEN 1 ELSE 0 END)::int                                    AS knew_count,
+                ROUND(AVG(CASE WHEN NOT r.knows_answer THEN r.satisfaction END)::numeric, 3)::float      AS avg_satisfaction,
+                ROUND(STDDEV_SAMP(CASE WHEN NOT r.knows_answer THEN r.satisfaction END)::numeric, 3)::float
+                                                                                                         AS stddev_satisfaction,
+                COUNT(CASE WHEN NOT r.knows_answer AND r.satisfaction IS NOT NULL THEN 1 END)::int       AS n_satisfaction
             FROM questions q
             LEFT JOIN responses r ON r.question_id = q.id
-            GROUP BY q.id, q.text, q.display_order
+            GROUP BY q.id, q.text, q.answer, q.display_order
             ORDER BY q.display_order
         """)
     return [dict(r) for r in rows]
